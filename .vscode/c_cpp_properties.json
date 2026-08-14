@@ -1,0 +1,30 @@
+{
+    "configurations": [
+        {
+            "name": "GD32F470-Read-Only",
+            "includePath": [
+                "${workspaceFolder}/Project",
+                "${workspaceFolder}/Project/.cmsis/include",
+                "${workspaceFolder}/Project/RTE/_Target_1",
+                "${workspaceFolder}/Libraries/Include",
+                "${workspaceFolder}/Startup",
+                "${workspaceFolder}/System",
+                "${workspaceFolder}/User",
+                "${workspaceFolder}/FatFt",
+                "${workspaceFolder}/Headfile",
+                "${workspaceFolder}/Driver/**",
+                "${workspaceFolder}/Function/**",
+                "${workspaceFolder}/Protocol/**"
+            ],
+            "defines": [
+                "GD32F470",
+                "NDEBUG",
+                "MB_POINT_MAP_ENABLE",
+                "__MICROLIB"
+            ],
+            "cStandard": "c99",
+            "intelliSenseMode": "${default}"
+        }
+    ],
+    "version": 4
+}

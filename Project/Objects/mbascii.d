@@ -1,0 +1,14 @@
+.\objects\mbascii.o: ..\Protocol\Free_Modbus\ascii\mbascii.c
+.\objects\mbascii.o: D:\apps\Keil\Local\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+.\objects\mbascii.o: D:\apps\Keil\Local\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\mbascii.o: ..\Protocol\Free_Modbus\port\port.h
+.\objects\mbascii.o: D:\apps\Keil\Local\Keil_v5\ARM\ARMCC\Bin\..\include\assert.h
+.\objects\mbascii.o: D:\apps\Keil\Local\Keil_v5\ARM\ARMCC\Bin\..\include\inttypes.h
+.\objects\mbascii.o: D:\apps\Keil\Local\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\mbascii.o: ..\Protocol\Free_Modbus\include\mb.h
+.\objects\mbascii.o: ..\Protocol\Free_Modbus\include\mbport.h
+.\objects\mbascii.o: ..\Protocol\Free_Modbus\include\mbproto.h
+.\objects\mbascii.o: ..\Protocol\Free_Modbus\include\mbconfig.h
+.\objects\mbascii.o: ..\Protocol\Free_Modbus\ascii\mbascii.h
+.\objects\mbascii.o: ..\Protocol\Free_Modbus\include\mbframe.h
+.\objects\mbascii.o: ..\Protocol\Free_Modbus\rtu\mbcrc.h

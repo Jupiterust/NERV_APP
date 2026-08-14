@@ -1,0 +1,13 @@
+.\objects\mbfuncholding.o: ..\Protocol\Free_Modbus\functions\mbfuncholding.c
+.\objects\mbfuncholding.o: D:\apps\Keil\Local\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+.\objects\mbfuncholding.o: D:\apps\Keil\Local\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\mbfuncholding.o: ..\Protocol\Free_Modbus\port\port.h
+.\objects\mbfuncholding.o: D:\apps\Keil\Local\Keil_v5\ARM\ARMCC\Bin\..\include\assert.h
+.\objects\mbfuncholding.o: D:\apps\Keil\Local\Keil_v5\ARM\ARMCC\Bin\..\include\inttypes.h
+.\objects\mbfuncholding.o: D:\apps\Keil\Local\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\mbfuncholding.o: ..\Function\modbus_data_map.h
+.\objects\mbfuncholding.o: ..\Protocol\Free_Modbus\include\mb.h
+.\objects\mbfuncholding.o: ..\Protocol\Free_Modbus\include\mbport.h
+.\objects\mbfuncholding.o: ..\Protocol\Free_Modbus\include\mbproto.h
+.\objects\mbfuncholding.o: ..\Protocol\Free_Modbus\include\mbframe.h
+.\objects\mbfuncholding.o: ..\Protocol\Free_Modbus\include\mbconfig.h

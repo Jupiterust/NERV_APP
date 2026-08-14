@@ -29,6 +29,115 @@ static uint8_t proto_dir_valid(oplog_proto_t proto, oplog_dir_t dir)
 
 
 /* ========================================================================
+ *  落盘到 TF 卡：一条独立于上面 6 个 RAM 环的队列
+ *
+ *  oplog_add() 只往这个队列里做一次 memcpy（oplog_sd_enqueue），真正的文件
+ *  I/O 全部挪到主循环的 oplog_sd_poll() 里做，避免拖慢 Protocol_SendFrame()
+ *  之前的应答路径。详见 Op_log_function.h【1】节和【7】节的说明。
+ * ======================================================================== */
+#if (OPLOG_SD_ENABLE != 0)
+
+static oplog_entry_t s_sd_queue[OPLOG_SD_QUEUE_DEPTH];
+static uint16_t       s_sd_head;            /* 下一条入队写在这个下标 */
+static uint16_t       s_sd_tail;            /* 下一条出队从这个下标读 */
+static uint16_t       s_sd_count;           /* 队列里当前有几条 */
+static uint32_t       s_sd_dropped;         /* 队列满导致被丢弃的条数 */
+static uint32_t       s_sd_last_flush_ts;   /* 上一次成功落盘的时间戳（UTC秒） */
+static uint8_t         s_sd_header_written; /* 表头是否已经写过 */
+
+/* 纯 memcpy 入队，不做任何 I/O。队列满了丢最旧的一条并计数——
+ * 和上面 6 个 RAM 环"存满覆盖最旧"是同一个思路，只是这里多记一下丢了几条。 */
+static void oplog_sd_enqueue(const oplog_entry_t *e)
+{
+    if (s_sd_count >= OPLOG_SD_QUEUE_DEPTH) {
+        s_sd_tail = (uint16_t)((s_sd_tail + 1) % OPLOG_SD_QUEUE_DEPTH);
+        s_sd_count--;
+        s_sd_dropped++;
+    }
+    s_sd_queue[s_sd_head] = *e;
+    s_sd_head = (uint16_t)((s_sd_head + 1) % OPLOG_SD_QUEUE_DEPTH);
+    s_sd_count++;
+}
+
+
+uint32_t oplog_sd_get_dropped(void)
+{
+    return s_sd_dropped;
+}
+
+
+void oplog_sd_poll(void)
+{
+    /* 拼行缓冲区，静态的不占栈——最坏情况一次性把整条队列都拼进去，
+     * 按 OPLOG_SD_QUEUE_DEPTH × OPLOG_LINE_MAX 留够空间。 */
+    static char s_flush_buf[OPLOG_SD_QUEUE_DEPTH * OPLOG_LINE_MAX];
+    uint32_t    now;
+    uint32_t    buf_len = 0;
+    uint16_t    n, i, pos;
+    int         line_len;
+
+    if (s_sd_count == 0) {
+        return;                                   /* 没有待落盘的记录 */
+    }
+    if (!bsp_sdio_is_ready()) {
+        return;                                   /* 没卡，静默跳过，队列继续攒着 */
+    }
+
+    now = bsp_rtc_get_unix_timestamp();
+    if (s_sd_count < OPLOG_SD_FLUSH_COUNT &&
+        (uint32_t)(now - s_sd_last_flush_ts) < (uint32_t)OPLOG_SD_FLUSH_INTERVAL_S) {
+        return;                                   /* 还没到触发条件 */
+    }
+
+#if (OPLOG_SD_WRITE_HEADER != 0)
+    if (!s_sd_header_written) {
+        if (bsp_sdio_file_append(OPLOG_SD_FILENAME, OPLOG_SD_HEADER_TEXT,
+                                 (uint32_t)strlen(OPLOG_SD_HEADER_TEXT))) {
+            s_sd_header_written = 1;
+        } else {
+            return;                               /* 写失败（卡满之类），下次再试 */
+        }
+    }
+#endif
+
+    /* 把队列里现有的记录按入队顺序（旧到新）拼成文本，保持时间先后 */
+    n   = s_sd_count;
+    pos = s_sd_tail;
+    for (i = 0; i < n; i++) {
+        line_len = oplog_format(&s_sd_queue[pos], &s_flush_buf[buf_len],
+                                (uint32_t)sizeof(s_flush_buf) - buf_len);
+        if (line_len > 0) {
+            buf_len += (uint32_t)line_len;
+            if (buf_len + 2 < sizeof(s_flush_buf)) {
+                s_flush_buf[buf_len++] = '\r';
+                s_flush_buf[buf_len++] = '\n';
+            }
+        }
+        pos = (uint16_t)((pos + 1) % OPLOG_SD_QUEUE_DEPTH);
+    }
+
+    if (buf_len == 0) {
+        return;
+    }
+
+    /* 一次 open+write+close，写成功才出队；失败就整批留在队列里，下次 poll 重试，
+     * 如果因此被后续新记录挤满，走 oplog_sd_enqueue() 的丢最旧逻辑 */
+    if (bsp_sdio_file_append(OPLOG_SD_FILENAME, s_flush_buf, buf_len)) {
+        s_sd_tail  = (uint16_t)((s_sd_tail + n) % OPLOG_SD_QUEUE_DEPTH);
+        s_sd_count = (uint16_t)(s_sd_count - n);
+        s_sd_last_flush_ts = now;
+    }
+}
+
+#else /* OPLOG_SD_ENABLE == 0：空实现，main.c 不用加 #if 也能调 oplog_sd_poll() */
+
+uint32_t oplog_sd_get_dropped(void) { return 0; }
+void oplog_sd_poll(void) { }
+
+#endif /* OPLOG_SD_ENABLE */
+
+
+/* ========================================================================
  *  记录
  * ======================================================================== */
 
@@ -70,6 +179,12 @@ void oplog_add(oplog_proto_t proto, oplog_dir_t dir,
     e->proto     = (uint8_t)proto;
     e->dir       = (uint8_t)dir;
     memcpy(e->data, data, n);
+
+#if (OPLOG_SD_ENABLE != 0)
+    /* 纯 memcpy 入队，不做任何 I/O —— 真正的文件读写全部挪到主循环的
+     * oplog_sd_poll() 里做，见 Op_log_function.h【1】节的说明。 */
+    oplog_sd_enqueue(e);
+#endif
 }
 
 

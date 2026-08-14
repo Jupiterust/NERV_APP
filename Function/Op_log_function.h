@@ -71,6 +71,36 @@
 /* 格式化一条记录需要多大的缓冲区，传给 oplog_format() 的 buf 至少要这么大 */
 #define OPLOG_LINE_MAX          (OPLOG_DATA_MAX * 2 + 64)
 
+/* -------- 落盘到 TF 卡（决赛可选功能）--------
+ * 总开关。0 = 落盘相关的运行时开销（RAM 队列 + 主循环里的落盘逻辑）全部编译掉，
+ * oplog_sd_poll() 退化成空函数，行为和不加这个功能之前完全一致。
+ * 下面几项只有这个开关为 1 时才真正生效，为了 #define 位置固定不额外套 #if。 */
+#define OPLOG_SD_ENABLE            1
+
+/* 落盘文件名。ffconf.h 里 _USE_LFN=1，长文件名可以用，但必须是纯 ASCII
+ *（中文名会被 FR_INVALID_NAME 拒绝，见 ffconf.h 的 Project note）。 */
+#define OPLOG_SD_FILENAME          "OPLOG.TXT"
+
+/* 待落盘队列深度，独立于上面 6 个 RAM 环，不占用 OPLOG_DEPTH 的名额，也不会被
+ * 那 6 个环的覆盖行为连累。存在的意义：主循环被 flash 擦除阻塞期间（比如 0x0603
+ * 清告警记录，最长约 400ms）产生的记录要能扛住不丢。按 Modbus 主站 10ms 一帧的
+ * 极限估算，400ms 内最多约 40 条，这里打了余量给 64。
+ * 每条 sizeof(oplog_entry_t) 随 OPLOG_DATA_MAX 变，默认配置下约 80 字节，
+ * 64 条约 5KB（本机 192KB RAM，放得下）。 */
+#define OPLOG_SD_QUEUE_DEPTH       64
+
+/* 队列里攒够几条触发一次落盘——减少开关文件次数，每次 open+write+close 都有
+ * 固定开销，不是攒得越少越及时就越好。 */
+#define OPLOG_SD_FLUSH_COUNT       8
+
+/* 即使没攒够 FLUSH_COUNT，队列里有记录且超过这么多秒没落盘也强制落一次，
+ * 避免总线空闲时已入队的几条记录一直堆在 RAM 里、迟迟不落卡。 */
+#define OPLOG_SD_FLUSH_INTERVAL_S  5
+
+/* 文件第一次真正落盘前是否先写一行表头，方便直接用 Excel/记事本打开核对列。 */
+#define OPLOG_SD_WRITE_HEADER      1
+#define OPLOG_SD_HEADER_TEXT       "time | dir | proto | rawlen | data\r\n"
+
 
 /* ==================== 【2】类型定义 ==================== */
 
@@ -180,5 +210,18 @@ void oplog_dump_all(void);                               /* 6 个环按时间顺
 
 /* "CUSTOM" / "RTU" / "ASCII"，越界返回 "?" */
 const char* oplog_proto_name(oplog_proto_t proto);
+
+
+/* ==================== 【7】落盘到 TF 卡 ==================== */
+
+/* 主循环里调用，实际做文件 I/O 的地方 —— 放在 Protocol_Route() 那个 if 块之后，
+ * 保证这一帧的应答已经交给串口中断发送了，这时候再动卡不会拖慢应答。
+ * 队列空、SD 未就绪、或还没攒够触发条件时立即返回，不阻塞。
+ * OPLOG_SD_ENABLE=0 时这是个空函数，main.c 不用加 #if 也能调。 */
+void oplog_sd_poll(void);
+
+/* 因为落盘队列满而被丢弃的记录数，"日志文件里少了几条"排查时看这个。
+ * OPLOG_SD_ENABLE=0 时恒返回 0。 */
+uint32_t oplog_sd_get_dropped(void);
 
 #endif

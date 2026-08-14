@@ -43,7 +43,8 @@ static uint16_t       s_sd_tail;            /* 下一条出队从这个下标读
 static uint16_t       s_sd_count;           /* 队列里当前有几条 */
 static uint32_t       s_sd_dropped;         /* 队列满导致被丢弃的条数 */
 static uint32_t       s_sd_last_flush_ts;   /* 上一次成功落盘的时间戳（UTC秒） */
-static uint8_t         s_sd_header_written; /* 表头是否已经写过 */
+static uint8_t         s_sd_header_written; /* 表头是否已经写过（本次开机内） */
+static uint8_t         s_sd_header_checked; /* 是否已经查过文件原有大小，只查一次 */
 
 /* 纯 memcpy 入队，不做任何 I/O。队列满了丢最旧的一条并计数——
  * 和上面 6 个 RAM 环"存满覆盖最旧"是同一个思路，只是这里多记一下丢了几条。 */
@@ -96,6 +97,15 @@ void oplog_sd_poll(void)
            (unsigned)s_sd_header_written);
 
 #if (OPLOG_SD_WRITE_HEADER != 0)
+    /* s_sd_header_written 只在 RAM 里，重启就丢——如果卡上的文件是上次开机
+     * 留下的（没删），不查一下文件本身大小的话，每次重启都会在文件中间再插
+     * 一条表头。只在本次开机第一次进这里时查一次文件大小，查过就不再查。 */
+    if (!s_sd_header_written && !s_sd_header_checked) {
+        s_sd_header_checked = 1;
+        if (bsp_sdio_file_get_size(OPLOG_SD_FILENAME) > 0) {
+            s_sd_header_written = 1;      /* 文件已有内容，是之前开机写下的，不重复写表头 */
+        }
+    }
     if (!s_sd_header_written) {
         wr_ok = bsp_sdio_file_append(OPLOG_SD_FILENAME, OPLOG_SD_HEADER_TEXT,
                                      (uint32_t)strlen(OPLOG_SD_HEADER_TEXT));

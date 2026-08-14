@@ -75,6 +75,7 @@ void oplog_sd_poll(void)
     uint32_t    buf_len = 0;
     uint16_t    n, i, pos;
     int         line_len;
+    bool        wr_ok;
 
     if (s_sd_count == 0) {
         return;                                   /* 没有待落盘的记录 */
@@ -89,10 +90,17 @@ void oplog_sd_poll(void)
         return;                                   /* 还没到触发条件 */
     }
 
+    /* TODO(debug): 排查"没生成文件"问题用的临时打印，确认现象后可以删掉 */
+    printf("[OPLOG-SD] triggered: queued=%u now=%lu last=%lu header_written=%u\r\n",
+           (unsigned)s_sd_count, (unsigned long)now, (unsigned long)s_sd_last_flush_ts,
+           (unsigned)s_sd_header_written);
+
 #if (OPLOG_SD_WRITE_HEADER != 0)
     if (!s_sd_header_written) {
-        if (bsp_sdio_file_append(OPLOG_SD_FILENAME, OPLOG_SD_HEADER_TEXT,
-                                 (uint32_t)strlen(OPLOG_SD_HEADER_TEXT))) {
+        wr_ok = bsp_sdio_file_append(OPLOG_SD_FILENAME, OPLOG_SD_HEADER_TEXT,
+                                     (uint32_t)strlen(OPLOG_SD_HEADER_TEXT));
+        printf("[OPLOG-SD] header write %s\r\n", wr_ok ? "ok" : "FAILED");
+        if (wr_ok) {
             s_sd_header_written = 1;
         } else {
             return;                               /* 写失败（卡满之类），下次再试 */
@@ -116,13 +124,19 @@ void oplog_sd_poll(void)
         pos = (uint16_t)((pos + 1) % OPLOG_SD_QUEUE_DEPTH);
     }
 
+    /* TODO(debug): 同上，临时打印 */
+    printf("[OPLOG-SD] formatted %u bytes from %u entries\r\n",
+           (unsigned)buf_len, (unsigned)n);
+
     if (buf_len == 0) {
         return;
     }
 
     /* 一次 open+write+close，写成功才出队；失败就整批留在队列里，下次 poll 重试，
      * 如果因此被后续新记录挤满，走 oplog_sd_enqueue() 的丢最旧逻辑 */
-    if (bsp_sdio_file_append(OPLOG_SD_FILENAME, s_flush_buf, buf_len)) {
+    wr_ok = bsp_sdio_file_append(OPLOG_SD_FILENAME, s_flush_buf, buf_len);
+    printf("[OPLOG-SD] data write %s\r\n", wr_ok ? "ok" : "FAILED");
+    if (wr_ok) {
         s_sd_tail  = (uint16_t)((s_sd_tail + n) % OPLOG_SD_QUEUE_DEPTH);
         s_sd_count = (uint16_t)(s_sd_count - n);
         s_sd_last_flush_ts = now;

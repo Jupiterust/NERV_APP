@@ -255,10 +255,14 @@ int bsp_sdio_file_read_line_at(const char* filename, uint32_t* offset,
 #define SD_FW_MAGIC_WORD    0x5AA5C33CU
 #define SD_FW_HEADER_SIZE   8U
 
-// 镜像合法性检查用的地址常量，必须和 Project/Objects/test.sct 保持一致：
+// 镜像合法性检查用的地址常量，必须和 App 实际链接运行的地址保持一致：
 //     LR_IROM1 0x08011000 0x00020000   App 加载/运行地址，128KB
 //     RW_IRAM1 0x20000000 0x00030000   RAM 起始地址，192KB
-// 改了分散加载文件，这里也要跟着改，否则合法的镜像会被判成非法
+// 这两个数字跟 Driver/BootConfig/BootConfig.h 的 FLASH_APP_BASE / FLASH_APP_SIZE
+// 应该永远相等——那边是"App 代码认为自己在哪"，这边是"TF卡升级镜像校验用哪个地址
+// 判断合法性"，两个不一致的话，合法的镜像会被判成非法（或者反过来，非法的通过了）。
+// 现场改 App 地址时这两处必须一起改，改完还要去 BootConfig.h 顶部看还有没有其它
+// 要同步的地方（Keil IROM1 设置 / eide.yml 的 storageLayout）。
 #define SD_FW_APP_BASE      0x08011000U
 #define SD_FW_APP_MAX_SIZE  0x00020000U
 #define SD_FW_RAM_BASE      0x20000000U

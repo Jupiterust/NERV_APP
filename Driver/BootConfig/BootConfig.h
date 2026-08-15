@@ -2,7 +2,45 @@
 #ifndef __BOOTCONFIG_H__
 #define __BOOTCONFIG_H__
 #include "Headfile.h"
-#define BOOT_CONFIG_ADDR 0x08010000  // Bootloader主参数区地址  4KB , 块0扇3第一页
+
+/* ============================================================================
+ * 内部 Flash 分区地址——现场如果要改 App/Bootloader 相关的 flash 地址，
+ * 只改这一组宏（对应初赛/决赛赛题 2.5 节的官方划分表）。
+ *
+ * ⚠️ FLASH_APP_BASE / FLASH_APP_SIZE 改了之后，光改这两个宏不够，还要同步
+ *    另外两处（这两处是 IDE/工具链级别的设置，宏管不到，必须手动改）：
+ *      1) Keil：Project/test.uvprojx 里 Target 的 IROM1 起始地址/大小
+ *         （Options for Target → Target 页，或直接改 XML 的 <IROM1> 字段）
+ *      2) EIDE：Project/.eide/eide.yml 的 storageLayout.ROM 里
+ *         tag=IROM 那一条的 startAddr / size
+ *    这两处改完，App 才是真的被 linker 放到新地址运行；C 代码里的宏只是让
+ *    "App 认为自己在哪" 跟上 "linker 真的把它放在哪"，宏本身指挥不了 linker。
+ *    另外 Driver/bsp_sdio.h 的 SD_FW_APP_BASE / SD_FW_APP_MAX_SIZE 是给 TF卡
+ *    升级镜像校验用的独立副本，同样要跟着改（那边已有注释提醒）。
+ *
+ *    兄弟 Bootloader 工程如果也认这些地址（比如往哪跳、备份到哪），那边要
+ *    同步改——这个仓库看不到、改不了那边的代码，只能提醒。
+ * ============================================================================ */
+
+/* Bootloader 区：0x08000000 ~ 0x0800FFFF，64KB */
+#define FLASH_BOOTLOADER_BASE      0x08000000U
+#define FLASH_BOOTLOADER_SIZE      0x00010000U
+
+/* 参数区（Bootloader/App 共享的参数块）：0x08010000 ~ 0x08010FFF，4KB */
+#define BOOT_CONFIG_ADDR           0x08010000U  // Bootloader主参数区地址  4KB , 块0扇3第一页
+
+/* App 运行区：0x08011000 ~ 0x08030FFF，128KB —— 当前 App 镜像实际链接运行的地址 */
+#define FLASH_APP_BASE             0x08011000U
+#define FLASH_APP_SIZE             0x00020000U
+
+/* App 备份区：0x08031000 ~ 0x08050FFF，128KB */
+#define FLASH_APP_BACKUP_BASE      0x08031000U
+#define FLASH_APP_BACKUP_SIZE      0x00020000U
+
+/* 固件暂存/下载区：0x08051000 ~ 0x08070FFF，128KB，OTA 收固件包时的中转区 */
+#define FLASH_APP_DOWNLOAD_BASE    0x08051000U
+#define FLASH_APP_DOWNLOAD_SIZE    0x00020000U
+
 /************************ 变量定义 ************************/
 
 /**
@@ -33,8 +71,8 @@ typedef struct __attribute__((packed))
 	uint32_t appCRC32;          // [36-39] App CRC32校验值 ★				存放升级硬件App的CRC				
 	uint32_t appVersion;        // [40-43] App版本(主.次.补丁.构建)			
 	uint32_t appBuildDate;      // [44-47] App编译日期					
-	uint32_t appStartAddr;      // [48-51] App起始地址: 				        0x0800D000
-	uint32_t appEntryAddr;      // [52-55] App入口地址					        0x0800D000
+	uint32_t appStartAddr;      // [48-51] App起始地址: 				        见 FLASH_APP_BASE（当前 0x08011000）
+	uint32_t appEntryAddr;      // [52-55] App入口地址					        见 FLASH_APP_BASE（当前 0x08011000）
 	uint32_t appStackAddr;      // [56-59] App栈地址(MSP)				        
 	uint32_t reserved2;         // [60-63] 保留							
 
@@ -57,7 +95,7 @@ typedef struct __attribute__((packed))
 
 	// ============ [112-143] 备份固件信息 (32字节) ============
 	uint32_t backupFlag;        // [112-115] 备份标志: 					
-	uint32_t backupAddr;        // [116-119] 备份地址				0x0800C100
+	uint32_t backupAddr;        // [116-119] 备份地址				见 FLASH_APP_BACKUP_BASE（当前 0x08031000）
 	uint32_t backupSize;        // [120-123] 备份大小	 			256
 	uint32_t backupCRC32;       // [124-127] 备份CRC32  		   存放当前App区的CRC	
 	uint32_t backupVersion;     // [128-131] 备份版本号				

@@ -1,10 +1,12 @@
 #include "app_upgrade.h"
 
-#define DOWNLOAD_ADDR 0x08051000
+/* 地址来源统一在 Driver/BootConfig/BootConfig.h，现场改地址只改那一处，
+ * 这里的宏名字不变，跟着走就行，不用改这两行。 */
+#define DOWNLOAD_ADDR FLASH_APP_DOWNLOAD_BASE
 
 #define CONFIG_SIZE 1024*4
 
-#define PARAM_ADDR 0x08010000
+#define PARAM_ADDR BOOT_CONFIG_ADDR
 
 
 typedef struct __attribute__((packed)) Parameter_SUM
@@ -27,7 +29,7 @@ void app_nvic_correction(void){
 	__disable_irq();
 
 	/* 关键修改2: 重定位中断向量表到App起始地址 */
-	SCB->VTOR = 0x08011000;   // App 起始地址
+	SCB->VTOR = FLASH_APP_BASE;   // App 起始地址，见 BootConfig.h
 
 	/* 关键修改3: 清除所有可能残留的中断挂起标志 */
 	for (uint32_t i = 0; i < 8; i++)

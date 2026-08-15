@@ -4,9 +4,12 @@
 // CONFIG APP SIZE
 #define CONFIG_APP_SIZE 1024*20
 
-#define APP_DOWNLOAD_ADDR 0x8073000	
-
-#define BOOT_CONFIG_ADDR 0x0800C000 
+/* APP_DOWNLOAD_ADDR / BOOT_CONFIG_ADDR 原来这里各自重复定义了一份、且和真正
+ * 生效的值不一样（0x8073000 vs bootloader.h 的 0x08051000，0x0800C000 vs
+ * BootConfig.h 的 0x08010000），本文件从没被编译过所以没暴露出来。已删掉这两行
+ * 局部重复定义——本文件已经 #include "bootloader.h"，它自己定义了正确的
+ * APP_DOWNLOAD_ADDR，又 #include 了 BootConfig.h 带来正确的 BOOT_CONFIG_ADDR，
+ * 两个名字沿用下面的代码不用改。地址真正的唯一来源见 Driver/BootConfig/BootConfig.h。 */
 
 typedef struct __attribute__((packed)) Parameter_SUM
 {

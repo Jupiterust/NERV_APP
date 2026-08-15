@@ -29,12 +29,12 @@ void bootloader_config_init(BootParam_t* param ,
 	tmp_param.version = 0x0001;
 	tmp_param.structSize = 256;
 	tmp_param.updateMode = 0x01;
-	tmp_param.appStartAddr = 0x08011000; // App 区
-	tmp_param.appEntryAddr = 0x08011000; // App 区
-	tmp_param.appStackAddr = *(uint32_t*)0x08011000; // App 栈顶
+	tmp_param.appStartAddr = FLASH_APP_BASE; // App 区
+	tmp_param.appEntryAddr = FLASH_APP_BASE; // App 区
+	tmp_param.appStackAddr = *(uint32_t*)FLASH_APP_BASE; // App 栈顶
 	tmp_param.bootVersion = 0x01;
 	tmp_param.bootSize = 4096;
-	tmp_param.backupAddr =  0x08031000;                      // App 备份区
+	tmp_param.backupAddr =  FLASH_APP_BACKUP_BASE;            // App 备份区
 	tmp_param.backupSize = 256;
 
 	// 设备信息字符串赋值
